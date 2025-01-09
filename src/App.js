@@ -1,15 +1,18 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, use } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
 import WordSuggestionCloud from "./WordCloud";
 
 const App = () => {
-  const [status, setStatus] = useState(" Not recording");
+  const [status, setStatus] = useState("Not recording");
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [suggestion, setSuggestion] = useState([]);
   const [audioContext, setAudioContext] = useState(null);
   const [audioInput, setAudioInput] = useState(null);
   const [processor, setProcessor] = useState(null);
+  const [pendingText, setPendingText] = useState("");
+  const [typingSpeed, setTypingSpeed] = useState(20);
+  const [, setFullTranscript] = useState("");
 
   const socketRef = useRef(); // Ref to store the socket object
 
@@ -41,23 +44,31 @@ const App = () => {
   useEffect(() => {
     socketRef.current = io("http://localhost:4000");
     // Handle transcription events from the backend
-    socketRef.current.on("transcription", async (data) => {
-      console.log("Received transcription:", data);
-      if (data.isFinal) {
-        // Update the transcript and send the updated transcript to the predict endpoint
-        setCurrentTranscript((prev) => {
-          const updatedTranscript = prev + data.text.replace(".", " ") + " ";
-          console.log("Updated transcript in callback:", updatedTranscript);
+    socketRef.current.on(
+      "transcription",
+      async (data) => {
+        console.log("Received transcription:", data);
+        if (data.isFinal) {
+          setFullTranscript((prev) => {
+            const updatedTranscript = prev + data.text + " ";
 
-          // Send the updated transcript to the predict endpoint
-          sendToPredictEndpoint(updatedTranscript);
+            sendToPredictEndpoint(
+              updatedTranscript[updatedTranscript.length - 2] === "."
+                ? updatedTranscript.slice(0, -2)
+                : updatedTranscript
+            );
 
-          return updatedTranscript;
-        });
-      } else {
-        setSuggestion([]);
-      }
-    });
+            return updatedTranscript;
+          });
+          // Update the transcript and send the updated transcript to the predict endpoint
+          setPendingText((prev) => prev + data.text + " ");
+        }
+        // else {
+        //   setSuggestion([]);
+        // }
+      },
+      []
+    );
 
     socketRef.current.on("error", (errorMessage) => {
       console.error("Server error:", errorMessage);
@@ -65,6 +76,19 @@ const App = () => {
       //   "\nError: " + errorMessage;
     });
   }, []);
+
+  useEffect(() => {
+    if (pendingText.length > 0) {
+      const timer = setTimeout(() => {
+        setCurrentTranscript((prev) => prev + pendingText[0]);
+        setPendingText((prev) => prev.slice(1));
+      }, typingSpeed);
+
+      return () => clearTimeout(timer);
+    } else {
+      console.log("not here");
+    }
+  }, [pendingText, typingSpeed]);
 
   const startRecording = async () => {
     console.log("Start button clicked");
@@ -110,7 +134,7 @@ const App = () => {
       audioContext.close();
       socketRef.current.emit("stopTranscription");
       // socketRef.current.disconnect();
-      updateStatus(" Not recording");
+      updateStatus("Not recording");
     }
   };
 
@@ -125,7 +149,7 @@ const App = () => {
     setStatus(newStatus);
     const statusIndicator = document.getElementById("statusIndicator");
     if (statusIndicator) {
-      statusIndicator.textContent = newStatus === " Recording" ? "🔴" : "⚪";
+      statusIndicator.textContent = newStatus === "Recording" ? "🔴" : "⚪";
     }
   };
 
@@ -134,7 +158,7 @@ const App = () => {
       <div className="container">
         <h1>Real-time Audio Transcription</h1>
         <div className="status">
-          Status: <span id="status">{status}</span>
+          Status: <span id="status">{`\u00A0${status}`}</span>
           <span id="statusIndicator">⚪</span>
         </div>
         <div className="button-container">
