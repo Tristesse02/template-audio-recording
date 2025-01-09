@@ -1,26 +1,61 @@
 import React, { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
+import WordSuggestionCloud from "./WordCloud";
 
 const App = () => {
-  const [status, setStatus] = useState("Not recording");
+  const [status, setStatus] = useState(" Not recording");
   const [currentTranscript, setCurrentTranscript] = useState("");
+  const [suggestion, setSuggestion] = useState([]);
   const [audioContext, setAudioContext] = useState(null);
   const [audioInput, setAudioInput] = useState(null);
   const [processor, setProcessor] = useState(null);
 
   const socketRef = useRef(); // Ref to store the socket object
 
+  // Function to send the transcript to the predict endpoint
+  const sendToPredictEndpoint = async (transcript) => {
+    try {
+      console.log("baodangdz", transcript);
+      const response = await fetch("http://localhost:5000/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: transcript.trim() }),
+      });
+
+      if (response.ok) {
+        const suggestions = await response.json();
+        console.log("Received suggestions:", suggestions["suggestion"]);
+        setSuggestion(suggestions["suggestion"]);
+      } else {
+        console.error("Failed to fetch suggestions");
+        setSuggestion([]);
+      }
+    } catch (error) {
+      console.error("Error sending to predict endpoint:", error);
+    }
+  };
+
   useEffect(() => {
     socketRef.current = io("http://localhost:4000");
     // Handle transcription events from the backend
-    socketRef.current.on("transcription", (data) => {
+    socketRef.current.on("transcription", async (data) => {
       console.log("Received transcription:", data);
       if (data.isFinal) {
-        setCurrentTranscript((prev) => prev + data.text + " ");
+        // Update the transcript and send the updated transcript to the predict endpoint
+        setCurrentTranscript((prev) => {
+          const updatedTranscript = prev + data.text.replace(".", " ") + " ";
+          console.log("Updated transcript in callback:", updatedTranscript);
+
+          // Send the updated transcript to the predict endpoint
+          sendToPredictEndpoint(updatedTranscript);
+
+          return updatedTranscript;
+        });
       } else {
-        // const partialTranscript = currentTranscript + data.text;
-        // document.getElementById("transcript").textContent = partialTranscript;
+        setSuggestion([]);
       }
     });
 
@@ -30,15 +65,6 @@ const App = () => {
       //   "\nError: " + errorMessage;
     });
   }, []);
-
-  // useEffect(() => {
-  //   console.log("what fac");
-  //   // Initialize the WebSocket connection
-
-  //   // Handle error events
-
-  //   console.log("Client-side script loaded");
-  // }, [currentTranscript]);
 
   const startRecording = async () => {
     console.log("Start button clicked");
@@ -84,7 +110,7 @@ const App = () => {
       audioContext.close();
       socketRef.current.emit("stopTranscription");
       // socketRef.current.disconnect();
-      updateStatus("Not recording");
+      updateStatus(" Not recording");
     }
   };
 
@@ -99,7 +125,7 @@ const App = () => {
     setStatus(newStatus);
     const statusIndicator = document.getElementById("statusIndicator");
     if (statusIndicator) {
-      statusIndicator.textContent = newStatus === "Recording" ? "🔴" : "⚪";
+      statusIndicator.textContent = newStatus === " Recording" ? "🔴" : "⚪";
     }
   };
 
@@ -125,16 +151,8 @@ const App = () => {
         <div id="transcript" className="transcript-box">
           {currentTranscript}
         </div>
-        <div className="info-section">
-          <h2>How to use:</h2>
-          <ul>
-            <li>Click "Start Transcription" to begin recording.</li>
-            <li>Speak clearly into your microphone.</li>
-            <li>Watch as your speech is transcribed in real-time.</li>
-            <li>Click "Stop Transcription" when you're done.</li>
-            <li>Use "Clear Transcript" to remove all transcribed text.</li>
-          </ul>
-        </div>
+        <div>Word Cloud section</div>
+        <WordSuggestionCloud suggestion={suggestion} />
         <div className="footer">
           <p>© 2024 Your Company. All Rights Reserved.</p>
         </div>
