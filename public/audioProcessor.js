@@ -17,7 +17,8 @@ class AudioProcessor extends AudioWorkletProcessor {
         this.buffer.push(int16Sample); // accumulating audio data
 
         // Check if the buffer has reached the target size
-        if (this.buffer.length >= this.targetChunkSize) { // If the buffer is full
+        if (this.buffer.length >= this.targetChunkSize) {
+          // If the buffer is full
           const chunk = new Int16Array(
             this.buffer.slice(0, this.targetChunkSize)
           );

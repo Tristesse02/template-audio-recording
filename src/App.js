@@ -151,7 +151,7 @@ const App = () => {
           <WordSuggestionCloud suggestion={suggestion} />
         </div>
         <footer className={styles.footer}>
-          © 2024 Your Company. All Rights Reserved.
+          © 2025 tmv. All Rights Reserved.
         </footer>
       </div>
     </div>
